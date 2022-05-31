@@ -1,0 +1,6 @@
+#!/bin/bash
+
+export T="$1"
+
+/usr/bin/mysqldump -u root -p{{lookup('password', './passwords/db-{{master_host}}')}} --single-transaction=TRUE --routines --triggers --databases {% for database in database_target %}{{ database }} {% endfor %} | gzip > /backups/slave-dump_$T.sql.gz
+

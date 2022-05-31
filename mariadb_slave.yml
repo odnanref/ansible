@@ -1,0 +1,17 @@
+- hosts: 192.168.31.74 # slave
+  become: true
+  vars:
+    - master_user: replicant
+    - master_password: r3pl1c4nt
+    - database_target: 
+        - db1
+        - db2
+        - db3
+        - db4
+    - master_host: 192.168.31.66 # master host
+    - slave_host_id: 3174
+    - ansible_python_interpreter: /usr/bin/python3
+    - ansible_command_timeout: 30
+  roles:
+      - mariadb-slave-creation
+

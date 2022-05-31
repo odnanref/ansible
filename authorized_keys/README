@@ -1,0 +1,6 @@
+ Change the group_vars/all USERNAME to the username intended
+
+/opt/pub_keys/{{USERNAME}}.pub has the location of the key to copy
+
+
+

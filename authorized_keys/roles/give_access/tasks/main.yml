@@ -1,0 +1,33 @@
+---
+# This will create the user and the authorized key file
+
+- name: Create remote user
+  user:
+    name: '{{ item }}'
+    shell: /bin/bash
+    groups: sudo
+    append: yes
+    create_home: True
+    update_password: always
+    password: "{{ newpassword|password_hash('sha512') }}"
+  loop: '{{ USERNAMES }}'
+
+- name: Create ssh dir in home
+  file:
+    path: /home/{{ item }}/.ssh/
+    state: directory
+    owner: '{{ item }}'
+    group: '{{ item }}'
+    mode: 0700
+  loop: '{{ USERNAMES }}'
+
+- name: Create Authorized Keys file
+  copy:
+    src: /opt/pub_keys/{{ item }}.pub
+    dest: /home/{{ item }}/.ssh/authorized_keys
+    owner: '{{ item }}'
+    group: '{{ item }}'
+    mode: 0644
+  loop: "{{ USERNAMES }}"
+
+

@@ -1,0 +1,145 @@
+- name: Install base for deployment
+  apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  loop:
+    - python3-pip
+    - python3-virtualenv
+    - python3-venv
+    - libmariadbclient-dev
+    - rsync
+  delegate_to: "{{master_host}}"
+
+- name: Install pip Dependencies
+  pip:
+    name: "{{ item }}"
+  loop:
+    - mysqlclient
+  delegate_to: "{{master_host}}"
+
+- name: Install base for deployment
+  apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  loop:
+    - python3-pip
+    - python3-virtualenv
+    - python3-venv
+    - libmariadbclient-dev
+    - rsync
+
+- name: Install pip Dependencies
+  pip:
+    name: "{{ item }}"
+  loop:
+    - mysqlclient
+
+- name: Install rsync on slave
+  apt:
+    name: rsync
+    state: present
+
+- name: Copy script dump to master
+  template:
+    src: create_dump.sh.j2
+    dest: /root/create_dump.sh
+    owner: root
+    group: root
+    mode: 750
+  delegate_to: "{{master_host}}"
+
+- name: Create Backup directory in master
+  file:
+    path: /backups
+    state: directory
+    mode: 750
+    owner: root
+    group: root
+  delegate_to: "{{master_host}}"
+
+- name: Script to execute READ LOCK on database and complete dump obtain MASTER DETAILS and unlock
+  command: /bin/bash -c "/root/create_dump.sh {{ ansible_date_time.iso8601 }}"
+  delegate_to: "{{ master_host }}"
+
+- name: Get master binlog filename and position
+  community.mysql.mysql_replication:
+    mode: getmaster
+  register: master
+  delegate_to: "{{ master_host }}"
+
+- name: Create user replicant in slave
+  user:
+    name: "replicant"
+    password: "{{lookup('password', './passwords/replicant')}}"
+    groups:
+     - sudo
+    state: present
+    shell: /bin/bash
+    system: no
+    createhome: yes
+    home: /home/replicant
+
+- name: Create Slave pub key
+  authorized_key:
+    user: "{{ item }}"
+    key: "{{ lookup('file', 'pub_keys/{{item}}.pub') }}"
+  loop:
+    - replicant
+
+- name: Create Backup directory
+  file:
+    path: /backups
+    state: directory
+    mode: 770
+    owner: root
+    group: replicant
+
+- name: Copy Dump to remote host
+  synchronize:
+    src: /backups/slave-dump_{{ ansible_date_time.iso8601 }}.sql.gz
+    dest: "/backups/"
+  delegate_to: "{{ master_host }}"
+
+- name: Install mariadb-server
+  apt:
+    name: mariadb-server
+    state: present
+
+#- name: Secure mariadb-server , will be in a role of it's own
+#  command: "mysql -u"
+
+- name: Create 50-server.conf from template
+  template:
+    src: 50-server.conf.j2
+    dest: /etc/mysql/mariadb.conf.d/50-server.cnf
+
+- name: Restart mariadb-server
+  service:
+    name: mysql
+    state: restarted
+
+- name: Stop Slave
+  community.mysql.mysql_replication:
+    mode: stopslave
+
+- name: Import /backups/slave-dump_$T.sql.gz
+  community.mysql.mysql_db:
+    name: "{{item}}"
+    state: import
+    target: "/backups/slave-dump_{{ ansible_date_time.iso8601 }}.sql.gz"
+  loop: "{{database_target}}"
+
+- name: Change master to master server and use binary log y with pos x
+  community.mysql.mysql_replication:
+    mode: changemaster
+    master_host: "{{master_host}}"
+    master_log_file: "{{master.File}}"
+    master_log_pos: "{{master.Position}}"
+    master_user: "{{master_user}}"
+    master_password: "{{master_password}}"
+
+- name: Start Slave
+  community.mysql.mysql_replication:
+    mode: startslave

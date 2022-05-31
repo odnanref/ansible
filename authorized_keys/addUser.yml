@@ -1,0 +1,14 @@
+---
+- hosts: afrihs
+
+  become: yes
+
+  vars:
+    #    ansible_ssh_user: ptc
+    USERNAMES:
+      - user1
+      - user2
+
+  roles:
+    - give_access
+

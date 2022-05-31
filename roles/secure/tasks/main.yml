@@ -1,0 +1,29 @@
+- name: Secure ssh
+  copy:
+    src: ./configs/sshd_config
+    dest: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: 0644
+
+- name: install pacct
+  apt:
+    name: acct
+    state: present
+
+- name: Install audit
+  apt:
+    name: auditd
+    state: present
+
+- name: copy stig.rules to rules.d
+  copy:
+    src: /usr/share/doc/auditd/examples/rules/30-stig.rules
+    dest: /etc/audit/rules.d/
+
+- name: restart auditd
+  ansible.builtin.systemd:
+    name: auditd
+    state: restarted
+    enabled: yes
+
